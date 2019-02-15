@@ -135,11 +135,13 @@ extension Book {
         }
 
         // then try fetching by ISBN
-        if let isbn = isbn {
+        if let isbnValue = ISBN13(isbn)?.int {
+            let numberIsbn = NSNumber(value: isbnValue)
             let isbnFetch = NSManagedObject.fetchRequest(Book.self, limit: 1)
-            isbnFetch.predicate = NSPredicate(format: "%K == %@", #keyPath(Book.isbn13), isbn)
+            isbnFetch.predicate = NSPredicate(format: "%K = %@", #keyPath(Book.isbn13), numberIsbn)
             isbnFetch.returnsObjectsAsFaults = false
-            return (try! context.fetch(isbnFetch)).first
+            let result = try! context.fetch(isbnFetch)
+            return result.first
         }
 
         return nil
