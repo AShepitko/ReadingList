@@ -131,7 +131,9 @@ extension Book {
             let googleBooksfetch = NSManagedObject.fetchRequest(Book.self, limit: 1)
             googleBooksfetch.predicate = NSPredicate(format: "%K == %@", #keyPath(Book.googleBooksId), googleBooksId)
             googleBooksfetch.returnsObjectsAsFaults = false
-            if let result = (try! context.fetch(googleBooksfetch)).first { return result }
+
+            let result = try! context.fetch(googleBooksfetch)
+            return result.first
         }
 
         // then try fetching by ISBN
@@ -140,6 +142,7 @@ extension Book {
             let isbnFetch = NSManagedObject.fetchRequest(Book.self, limit: 1)
             isbnFetch.predicate = NSPredicate(format: "%K = %@", #keyPath(Book.isbn13), numberIsbn)
             isbnFetch.returnsObjectsAsFaults = false
+
             let result = try! context.fetch(isbnFetch)
             return result.first
         }

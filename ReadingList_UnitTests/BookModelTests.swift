@@ -60,7 +60,7 @@ class BookModelTests: XCTestCase {
 
     var mockCoreDataStack = MockCoreDataStack()
 
-    // MARK: - Tests
+    // MARK: - Initialize book
 
     func testBookCreationSavesReadState() {
         let readState: BookReadState = .toRead
@@ -97,6 +97,8 @@ class BookModelTests: XCTestCase {
         XCTAssertEqual(sut.authors, authors)
     }
 
+    // MARK: - Fetching books
+
     func testGetBookByGoogleIdReturnsBook() {
         let bookId = "1"
         _ = insertBookItem(title: "Book 1",
@@ -122,23 +124,147 @@ class BookModelTests: XCTestCase {
         XCTAssertEqual(book?.isbn13, isbnNumber(from: bookIsbn))
     }
 
-    func testEmptyTitleThrowsValidationError() {
-        let book = Book(context: mockCoreDataStack.mainContext, readState: .toRead)
-        book.title = String()
-        book.setAuthors([Author(lastName: "Test", firstNames: "Author")])
-        book.manualBookId = UUID().uuidString
+    func testGetBookByIncorrectISDNReturnsNil() {
+        let bookIsbn: String = "test_isbn"
 
-        XCTAssertThrowsError(try book.validateForUpdate(), "Incorret title doesn't generate validation error")
+        let book = Book.get(fromContext: mockCoreDataStack.mainContext, googleBooksId: nil, isbn: bookIsbn)
+
+        XCTAssertNil(book)
+    }
+
+    func testGetBookWithEmptyIdsReturnsNil() {
+        let book = Book.get(fromContext: mockCoreDataStack.mainContext, googleBooksId: nil, isbn: nil)
+
+        XCTAssertNil(book)
+    }
+
+    // MARK: - Book validation
+
+    func testEmptyAuthorsThrowsNoAuthorsError() {
+        let book = createTestBookWithGoogleId()
+
+        book.setAuthors([])
+
+        XCTAssertThrowsError(try book.validateForUpdate(), "Empty authors doesn't generate validation error") { error in
+            XCTAssertEqual(error as NSError, BookValidationError.noAuthors.NSError())
+        }
+    }
+
+    func testBookWithAuthorsPassesValidation() {
+        let book = createTestBookWithGoogleId()
+
+        book.setAuthors([Author(lastName: "Smith", firstNames: "Jhon")])
+
+        XCTAssertNoThrow(try book.validateForUpdate(), "Book with authors has validation error")
+    }
+
+    func testEmptyTitleThrowsValidationError() {
+        let book = createTestBookWithGoogleId()
+
+        book.title = String()
+
+        XCTAssertThrowsError(try book.validateForUpdate(), "Incorret title doesn't generate validation error") { error in
+            XCTAssertEqual(error as NSError, BookValidationError.missingTitle.NSError())
+        }
     }
 
     func testNotEmptyTitlePassesValidation() {
-        let book = Book(context: mockCoreDataStack.mainContext, readState: .toRead)
+        let book = createTestBookWithGoogleId()
+
         book.title = "Test"
-        book.setAuthors([Author(lastName: "Test", firstNames: "Author")])
-        book.manualBookId = UUID().uuidString
 
         XCTAssertNoThrow(try book.validateForUpdate(), "Correct title generates validation error")
     }
+
+    func testIncorrectIsbnThrowsError() {
+        let book = createTestBookWithIsbn()
+
+        book.isbn13 = NSNumber(value: 1)
+
+        XCTAssertThrowsError(try book.validateForUpdate(), "Incorrect isbn doesn't trigger validation error") { error in
+            XCTAssertEqual(error as NSError, BookValidationError.invalidIsbn.NSError())
+        }
+    }
+
+    func testCorrectIsbnPassesValidation() {
+        let book = createTestBookWithIsbn()
+
+        book.isbn13 = NSNumber(value: 9789604533084)
+
+        XCTAssertNoThrow(try book.validateForUpdate(), "Correct isbn fails validation")
+    }
+
+    func testIncorrectLanguageCodeGeneratesError() {
+        let book = createTestBookWithGoogleId()
+
+        book.languageCode = "pe"
+
+        XCTAssertThrowsError(try book.validateForUpdate(), "Incorrect language code doesn't trigger validation error") { error in
+            XCTAssertEqual(error as NSError, BookValidationError.invalidLanguageCode.NSError())
+        }
+    }
+    
+    func testCorrectLanguageCodePassesValidation() {
+        let book = createTestBookWithGoogleId()
+
+        book.languageCode = "en"
+
+        XCTAssertNoThrow(try book.validateForUpdate(), "Correct language code fails validation")
+    }
+
+    // MARK: - Book actions
+
+    func testStartReadingChangeStateToReading() {
+        let sut = Book(context: mockCoreDataStack.mainContext, readState: .toRead)
+
+        sut.startReading()
+
+        XCTAssertEqual(sut.readState, .reading)
+    }
+
+    func testFinishedBookNotChangeStateWithStartReading() {
+        let state: BookReadState = .finished
+        let sut = Book(context: mockCoreDataStack.mainContext, readState: state)
+
+        sut.startReading()
+
+        XCTAssertEqual(sut.readState, state)
+    }
+
+    func testStartReadingSetsStartReadingDate() {
+        let sut = Book(context: mockCoreDataStack.mainContext, readState: .toRead)
+
+        sut.startReading()
+
+        XCTAssertNotNil(sut.startedReading)
+    }
+
+    func testFinishReadingChangeStateToFinished() {
+        let sut = Book(context: mockCoreDataStack.mainContext, readState: .reading)
+
+        sut.finishReading()
+
+        XCTAssertEqual(sut.readState, .finished)
+    }
+
+    func testNotReadBookNotChangeStateWithFinishReading() {
+        let state: BookReadState = .toRead
+        let sut = Book(context: mockCoreDataStack.mainContext, readState: state)
+
+        sut.finishReading()
+
+        XCTAssertEqual(sut.readState, state)
+    }
+
+    func testFinishReafingSetsFinishReadingDate() {
+        let sut = Book(context: mockCoreDataStack.mainContext, readState: .reading)
+
+        sut.finishReading()
+
+        XCTAssertNotNil(sut.finishedReading)
+    }
+
+    // MARK: - Tear down
 
     override func tearDown() {
         mockCoreDataStack.flushData()
@@ -146,6 +272,27 @@ class BookModelTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    private func createTestBookWithIsbn() -> Book {
+        let book = Book(context: mockCoreDataStack.mainContext, readState: .toRead)
+        book.title = "Harry Potter"
+        book.isbn13 = NSNumber(value: 9789604533084)
+        book.setAuthors([Author(lastName: "Test", firstNames: "Author")])
+        book.manualBookId = UUID().uuidString
+        book.languageCode = "en"
+
+        return book
+    }
+
+    private func createTestBookWithGoogleId() -> Book {
+        let book = Book(context: mockCoreDataStack.mainContext, readState: .toRead)
+        book.title = "Harry Potter"
+        book.googleBooksId = "1"
+        book.setAuthors([Author(lastName: "Test", firstNames: "Author")])
+        book.languageCode = "en"
+
+        return book
+    }
 
     private func insertBookItem(title: String,
                                 googleBooksId: String? = nil,
