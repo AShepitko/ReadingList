@@ -19,7 +19,7 @@ class SearchOnlineTests: XCTestCase {
 
     private func performSearch(_ app: ReadingListApp) {
         app.clickAddButton(addMethod: .searchOnline)
-        sleep(1)
+        sleep(2)
         app.typeText("Orwell")
         app.buttons["Search"].tap()
         sleep(1)
