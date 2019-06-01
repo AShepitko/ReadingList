@@ -81,7 +81,7 @@ DEPENDENCIES:
   - SwiftyStoreKit (~> 0.13)
 
 SPEC REPOS:
-  https://github.com/cocoapods/specs.git:
+  https://github.com/CocoaPods/Specs.git:
     - Crashlytics
     - DZNEmptyDataSet
     - Eureka
@@ -135,4 +135,4 @@ SPEC CHECKSUMS:
 
 PODFILE CHECKSUM: a7dcf1d15ba726c188630dd088b50b014aeb210c
 
-COCOAPODS: 1.5.3
+COCOAPODS: 1.5.0
